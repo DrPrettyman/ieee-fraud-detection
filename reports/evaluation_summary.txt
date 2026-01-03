@@ -1,0 +1,23 @@
+
+=== Model Evaluation Summary ===
+
+CV Performance:
+  Mean AUC: 0.9017 (+/- 0.0103)
+
+Holdout Performance:
+  ROC-AUC: 0.9714
+  PR-AUC: 0.7364
+
+Threshold Optimization:
+  F1-optimal: 0.81 (F1=68.45%)
+  Cost-optimal: 0.59 (saves $441,790)
+
+Cost Analysis (at cost-optimal threshold):
+  Baseline cost (no model): $609,600
+  Model cost: $167,810
+  Net savings: $441,790
+
+Feature Analysis:
+  Total features: 450
+  Features for 90% importance: 93
+  Top 5 features: V258, V70, C14, V294, D2
