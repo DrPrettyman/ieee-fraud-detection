@@ -2,6 +2,8 @@
 
 A cost-sensitive approach to transaction screening using the IEEE-CIS Fraud Detection dataset.
 
+For the Kaggle competition [IEEE Fraud Detection](https://www.kaggle.com/competitions/ieee-fraud-detection), 2019.
+
 ## Problem Statement
 
 E-commerce companies lose billions annually to fraud, but aggressive fraud prevention creates false positives that block legitimate customers. This project builds a fraud detection system that optimizes the trade-off between fraud losses and customer friction.
