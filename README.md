@@ -6,7 +6,9 @@
 ![LightGBM](https://img.shields.io/badge/LightGBM-4.0+-red.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-A cost-sensitive machine learning approach to transaction fraud detection, achieving **97.4% AUC** and **$447K annual savings** on the [IEEE-CIS Fraud Detection](https://www.kaggle.com/competitions/ieee-fraud-detection) dataset.
+A cost-sensitive machine learning approach to transaction fraud detection, achieving **97.4% AUC** and **$447K annual savings** on the [IEEE-CIS Fraud Detection](https://www.kaggle.com/competitions/ieee-fraud-detection) dataset. 
+
+The notebooks in the project are designed to be read and followed, with comments and markdown cells, but I have also written a more comprehensive blog post about this project at [joshuaprettyman.com/projects/fraud-detection](https://joshuaprettyman.com/projects/fraud-detection).
 
 ## Key Results
 
