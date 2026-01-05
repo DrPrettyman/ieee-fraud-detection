@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 from collections import defaultdict
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.font_manager import FontProperties
+from matplotlib.textpath import TextPath
 
 
 def stringify_consecutive_numbers(numbers: list[int]) -> str:
@@ -73,7 +76,14 @@ def disp_columns(df: pd.DataFrame, title: str = None):
     
     return
 
-def disp_distributions(dataframe: pd.DataFrame, exclude_cols=None):
+def _get_text_width(text: str, fontsize: float = 9) -> float:
+    """Measure the width of text in points using matplotlib's TextPath."""
+    fp = FontProperties(size=fontsize)
+    tp = TextPath((0, 0), text, prop=fp)
+    return tp.get_extents().width
+
+
+def column_distributions(dataframe: pd.DataFrame, exclude_cols=None) -> Figure:
     """Display table-style distribution plots for all columns in a DataFrame."""
 
     columns = dict(dataframe.dtypes)
@@ -85,19 +95,60 @@ def disp_distributions(dataframe: pd.DataFrame, exclude_cols=None):
 
     _nrows = len(columns) + 1  # +1 for header row
     _ncols = 4  # Column, # Unique, % NaN, Distribution
+    
+    # Calculate dynamic width ratios based on actual text widths
+    max_widths = dict()
 
-    fig, axes = plt.subplots(_nrows, _ncols, figsize=(10, 0.4 * _nrows),
-                              gridspec_kw={'width_ratios': [2, 1, 1, 4]})
+    max_widths["Column"] = max(
+        [_get_text_width('Column', fontsize=16)] +
+        [_get_text_width(str(col), fontsize=9) for col in columns.keys()]
+    )
+
+    _max_nunique = dataframe[list(columns.keys())].nunique().max()
+    _ndigits = int(np.ceil(np.log10(_max_nunique)))
+    max_widths["# Unique"] = max(
+        _get_text_width('# Unique', fontsize=16),
+        _get_text_width('0'*_ndigits, fontsize=9)
+    )
+
+    max_widths["% NaN"] = _get_text_width('% NaN', fontsize=16)
+
+    # Distribution gets 6 inches
+    max_widths["Distribution"] = 6 * 72
+
+    # Calculate total width in points, convert to inches (72 points = 1 inch)
+    # Add extra width to account for wspace between columns
+    wspace = 0.15  # 15% of average subplot width between each column
+    total_width_pts = sum(max_widths.values())
+    # wspace adds (n-1) * wspace * avg_width extra space
+    avg_width = total_width_pts / _ncols
+    extra_space = (_ncols - 1) * wspace * avg_width
+    total_width_in = (total_width_pts + extra_space) / 72
+
+    fig, axes = plt.subplots(
+        _nrows, _ncols, figsize=(total_width_in, 0.4 * _nrows),
+        gridspec_kw={
+            'width_ratios': [
+                max_widths["Column"],
+                max_widths["# Unique"],
+                max_widths["% NaN"],
+                max_widths["Distribution"]
+            ],
+            'wspace': wspace,
+            'hspace': 0.2
+        }
+    )
 
     # Handle single data row case
     if len(columns) == 1:
         axes = axes.reshape(2, 4)
 
-    # Header row
+    # Header row - all headers left-aligned
     headers = ['Column', '# Unique', '% NaN', 'Distribution']
     for j, header in enumerate(headers):
+        ha = 'center' if header == "Distribution" else 'left'
         ax = axes[0, j]
-        ax.text(0.5, 0.5, header, ha='center', va='center', fontsize=10, fontweight='bold')
+        ax.text(0.05, 0.5, header, ha=ha, va='center', fontsize=10, fontweight='bold')
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
         ax.axis('off')
@@ -110,19 +161,19 @@ def disp_distributions(dataframe: pd.DataFrame, exclude_cols=None):
         pct_nan = _series.isna().mean() * 100
 
         # Column name
-        axes[row, 0].text(0.5, 0.5, _col, ha='center', va='center', fontsize=9)
+        axes[row, 0].text(0.05, 0.5, _col, ha='left', va='center', fontsize=9)
         axes[row, 0].set_xlim(0, 1)
         axes[row, 0].set_ylim(0, 1)
         axes[row, 0].axis('off')
 
         # # Unique
-        axes[row, 1].text(0.5, 0.5, str(n_unique), ha='center', va='center', fontsize=9)
+        axes[row, 1].text(0.95, 0.5, str(n_unique), ha='right', va='center', fontsize=9)
         axes[row, 1].set_xlim(0, 1)
         axes[row, 1].set_ylim(0, 1)
         axes[row, 1].axis('off')
 
         # % NaN
-        axes[row, 2].text(0.5, 0.5, f"{pct_nan:.1f}%", ha='center', va='center', fontsize=9)
+        axes[row, 2].text(0.95, 0.5, f"{pct_nan:.1f}%", ha='right', va='center', fontsize=9)
         axes[row, 2].set_xlim(0, 1)
         axes[row, 2].set_ylim(0, 1)
         axes[row, 2].axis('off')
@@ -165,6 +216,7 @@ def disp_distributions(dataframe: pd.DataFrame, exclude_cols=None):
         for spine in ax.spines.values():
             spine.set_visible(False)
 
-    plt.tight_layout()
-    plt.show()
+    # fig.tight_layout()
+    
+    return fig
     
