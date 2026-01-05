@@ -6,17 +6,17 @@
 ![LightGBM](https://img.shields.io/badge/LightGBM-4.0+-red.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-A cost-sensitive machine learning approach to transaction fraud detection, achieving **97.1% AUC** and **$441K annual savings** on the [IEEE-CIS Fraud Detection](https://www.kaggle.com/competitions/ieee-fraud-detection) dataset.
+A cost-sensitive machine learning approach to transaction fraud detection, achieving **97.4% AUC** and **$447K annual savings** on the [IEEE-CIS Fraud Detection](https://www.kaggle.com/competitions/ieee-fraud-detection) dataset.
 
 ## Key Results
 
 | Metric | Value |
 |--------|-------|
-| ROC-AUC (Holdout) | **0.9714** |
-| PR-AUC | 0.7364 |
-| CV Mean AUC | 0.9017 ± 0.01 |
-| Cost Reduction | **72%** vs. no model |
-| Annual Savings | **$441,790** |
+| ROC-AUC (Holdout) | **0.9738** |
+| PR-AUC | 0.7369 |
+| CV Mean AUC | 0.9088 ± 0.01 |
+| Cost Reduction | **73%** vs. no model |
+| Annual Savings | **$446,985** |
 
 ## Problem Statement
 
@@ -54,13 +54,13 @@ Traditional ML optimizes for F1 score, but business needs differ:
 | Blocked legitimate (FP) | $10 (customer friction) |
 | Caught fraud (TP) | $5 (review cost) |
 
-**Finding**: The cost-optimal threshold (0.59) differs significantly from the F1-optimal threshold (0.81), demonstrating why business context matters.
+**Finding**: The cost-optimal threshold (0.54) differs significantly from the F1-optimal threshold (0.82), demonstrating why business context matters.
 
-![Cost Analysis](reports/cost_analysis.png)
+![Cost Analysis](figures/evaluation/cost_analysis.png)
 
 The model achieves excellent class separation, with fraud scores concentrated near 1.0 and legitimate transactions near 0.0:
 
-![Score Distribution](reports/score_distribution.png)
+![Score Distribution](figures/evaluation/score_distribution.png)
 
 ## Project Structure
 
@@ -74,7 +74,8 @@ ieee-fraud-detection/
 ├── data/
 │   └── download_data.py             # Kaggle dataset download script
 ├── models/                          # Saved model artifacts
-├── reports/                         # Generated figures and summaries
+├── figures/                         # Generated figures
+├── reports/                         # Evaluation summaries
 └── requirements.txt
 ```
 
