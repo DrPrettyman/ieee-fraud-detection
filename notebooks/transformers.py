@@ -48,50 +48,202 @@ class TimeFeatures(BaseEstimator, TransformerMixin):
 
 
 class EmailFeatures(BaseEstimator, TransformerMixin):
-    """Add email-based features."""
+    """Add email-based features.
+
+    EDA Insights (01_eda.ipynb, Section 8 - Email Domain Analysis):
+    - Email match (P_emaildomain == R_emaildomain) shows 9.7% fraud rate
+      vs 2.2% when different (Insight 6)
+    - outlook.com has highest fraud rate at 9.5% for P_emaildomain
+    - For R_emaildomain: outlook.com (16.5%), icloud.com (12.9%), gmail.com (11.9%)
+    - These rates are 2-5x the baseline ~3.5% fraud rate
+    """
 
     FREE_EMAILS = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
                    'aol.com', 'icloud.com', 'mail.com', 'protonmail.com']
+
+    # Domains with fraud rate significantly above baseline (from EDA cell 39)
+    # P_emaildomain: outlook.com (9.5%), hotmail.com (5.3%)
+    # R_emaildomain: outlook.com (16.5%), icloud.com (12.9%), gmail.com (11.9%)
+    HIGH_RISK_P_DOMAINS = ['outlook.com', 'hotmail.com']
+    HIGH_RISK_R_DOMAINS = ['outlook.com', 'icloud.com', 'gmail.com', 'hotmail.com']
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X):
         X = X.copy()
+
+        # Original features
         X['email_match'] = (X['P_emaildomain'] == X['R_emaildomain']).astype(int)
         X['P_email_is_free'] = X['P_emaildomain'].isin(self.FREE_EMAILS).astype(int)
         X['R_email_is_free'] = X['R_emaildomain'].isin(self.FREE_EMAILS).astype(int)
         X['P_email_missing'] = X['P_emaildomain'].isna().astype(int)
         X['R_email_missing'] = X['R_emaildomain'].isna().astype(int)
 
+        # New: High-risk domain flags (from EDA insight)
+        X['P_email_high_risk'] = X['P_emaildomain'].isin(self.HIGH_RISK_P_DOMAINS).astype(int)
+        X['R_email_high_risk'] = X['R_emaildomain'].isin(self.HIGH_RISK_R_DOMAINS).astype(int)
+
         return X
 
 
 class CardFeatures(BaseEstimator, TransformerMixin):
-    """Add card and device features."""
+    """Add card and device features.
+
+    EDA Insights (01_eda.ipynb, Section 12 & Insights 6, 8):
+    - D1 represents "days since card was first used"
+    - New cards (D1 < 7 days) have elevated fraud rates (cell 54)
+    - Fraud rate by D1 bucket shows clear pattern:
+      0-7d: highest, then decreases with card age
+    - Mobile devices show 10.2% fraud vs 6.5% desktop (1.6x higher)
+    - Transactions WITH identity data have 7.8% fraud (vs 2.1% without)
+    """
+
+    # Card age buckets from EDA cell 54
+    D1_BINS = [-1, 0, 7, 30, 90, 365, float('inf')]
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X):
         X = X.copy()
+
+        # Original features
         X['is_new_card'] = (X['D1'] <= 7).astype(int)
         X['has_identity'] = X['DeviceType'].notna().astype(int)
         X['is_mobile'] = (X['DeviceType'] == 'mobile').astype(int)
+
+        # New: More granular card age buckets (from EDA)
+        # Buckets: 0 (same day), 1-7d, 8-30d, 31-90d, 91-365d, 365d+
+        X['card_age_bucket'] = np.digitize(
+            X['D1'].fillna(-1),  # Missing D1 gets bucket 0
+            bins=self.D1_BINS
+        ) - 1
+
+        return X
+
+
+class DeviceFeatures(BaseEstimator, TransformerMixin):
+    """Extract OS/browser features from DeviceInfo.
+
+    EDA Insights (01_eda.ipynb, Section 9 & cell 45):
+    - DeviceInfo contains mixed device/browser/OS information
+    - Windows: 47,722 txns, 6.5% fraud rate
+    - iOS Device: 19,782 txns, 6.3% fraud rate
+    - MacOS: 12,573 txns, 2.2% fraud rate (below average)
+    - SM-J700M (Android): 549 txns, 10.9% fraud rate (high risk)
+
+    Parsing DeviceInfo to extract OS provides cleaner signal than
+    raw high-cardinality DeviceInfo string.
+    """
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        X = X.copy()
+
+        device = X['DeviceInfo'].fillna('unknown').astype(str).str.lower()
+
+        # OS detection (from EDA device analysis)
+        X['is_windows'] = device.str.contains('windows').astype(int)
+        X['is_macos'] = device.str.contains('macos|mac os').astype(int)
+        X['is_ios'] = device.str.contains('ios').astype(int)
+        X['is_android'] = device.str.contains('android|sm-|samsung|lg-|moto').astype(int)
+        X['is_linux'] = device.str.contains('linux').astype(int)
+
+        # Browser detection (common patterns in DeviceInfo)
+        X['is_chrome'] = device.str.contains('chrome').astype(int)
+        X['is_safari'] = device.str.contains('safari').astype(int)
+        X['is_firefox'] = device.str.contains('firefox|rv:').astype(int)
+        X['is_edge'] = device.str.contains('edge|trident').astype(int)
+
+        return X
+
+
+class InteractionFeatures(BaseEstimator, TransformerMixin):
+    """Create interaction features between categorical variables.
+
+    EDA Insights (01_eda.ipynb, Sections 6-7):
+    - card4 (network): Discover has 7.7% fraud vs ~3% for others (Insight 4)
+    - ProductCD: Product C has highest fraud rate (Insight 5)
+    - DeviceType: Mobile 10.2% vs Desktop 6.5% (Insight 6)
+
+    Interaction rationale:
+    - Fraud patterns may differ by card_network × product combination
+    - A Discover card buying Product C on mobile might have very different
+      risk than Visa buying Product W on desktop
+    - String concatenation creates new categorical for tree models to split on
+    """
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        X = X.copy()
+
+        # Card network × Product interactions
+        X['card4_ProductCD'] = (
+            X['card4'].fillna('unk').astype(str) + '_' +
+            X['ProductCD'].fillna('unk').astype(str)
+        )
+        X['card6_ProductCD'] = (
+            X['card6'].fillna('unk').astype(str) + '_' +
+            X['ProductCD'].fillna('unk').astype(str)
+        )
+
+        # Device × Product interactions
+        X['DeviceType_ProductCD'] = (
+            X['DeviceType'].fillna('unk').astype(str) + '_' +
+            X['ProductCD'].fillna('unk').astype(str)
+        )
+
+        # Card network × Device interactions
+        X['card4_DeviceType'] = (
+            X['card4'].fillna('unk').astype(str) + '_' +
+            X['DeviceType'].fillna('unk').astype(str)
+        )
 
         return X
 
 
 class AmountFeatures(BaseEstimator, TransformerMixin):
-    """Add transaction amount features."""
+    """Add transaction amount features.
+
+    EDA Insights (01_eda.ipynb, Section 4 & Insight 2):
+    - Fraud rate increases with amount: 2.4% ($0-25) → 5.5% ($500-1000)
+    - BUT drops back to 3.4% for $1000+ (non-monotonic relationship)
+    - Mean fraud amount ($149) slightly higher than legitimate ($135)
+    - Explicit buckets help tree models find these non-linear patterns
+
+    Cents patterns (fraud detection best practice):
+    - Fraudsters often use round amounts or specific cent values
+    - .00 cents (round amounts) and .99 cents (fake pricing) are signals
+    """
+
+    # Buckets from EDA cell 18 fraud rate analysis
+    AMT_BINS = [0, 25, 50, 100, 200, 500, 1000, float('inf')]
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X):
         X = X.copy()
+
+        # Original features
         X['TransactionAmt_log'] = np.log1p(X['TransactionAmt'])
-        X['TransactionAmt_decimal'] = (X['TransactionAmt'] % 1).round(2)
+
+        # Amount bucket (from EDA - non-monotonic fraud rate by amount)
+        X['amt_bucket'] = np.digitize(X['TransactionAmt'], bins=self.AMT_BINS) - 1
+
+        # Cents analysis (fraud pattern detection)
+        cents = (X['TransactionAmt'] * 100 % 100).astype(int)
+        X['cents'] = cents
+        X['cents_00'] = (cents == 0).astype(int)  # Round amounts
+        X['cents_99'] = (cents == 99).astype(int)  # Fake pricing pattern
+        X['cents_95'] = (cents == 95).astype(int)  # Common pricing pattern
+
+        # Keep is_round as it's more interpretable than cents_00
         X['TransactionAmt_is_round'] = (X['TransactionAmt'] % 1 == 0).astype(int)
 
         return X
@@ -252,6 +404,46 @@ class MissingIndicators(BaseEstimator, TransformerMixin):
             if col in X.columns:
                 X[f'{col}_missing'] = X[col].isna().astype(int)
 
+        return X
+
+
+class VFeatureBlocks(BaseEstimator, TransformerMixin):
+    """Identify which V feature blocks are missing.
+
+    EDA Insight (01_eda.ipynb, Insight 7):
+    - 339 V features with highly correlated missing patterns
+    - Missing value co-occurrence heatmap shows clear block structure
+    - This suggests V features were collected in groups by Vesta
+    - Knowing WHICH block is missing may be more predictive than just count
+
+    The block boundaries were identified from the missing correlation heatmap
+    in cell 49 of the EDA notebook.
+    """
+
+    # Blocks identified from missing correlation heatmap in EDA
+    V_BLOCKS = {
+        'V1_11': [f'V{i}' for i in range(1, 12)],
+        'V12_34': [f'V{i}' for i in range(12, 35)],
+        'V35_52': [f'V{i}' for i in range(35, 53)],
+        'V53_74': [f'V{i}' for i in range(53, 75)],
+        'V75_94': [f'V{i}' for i in range(75, 95)],
+        'V95_137': [f'V{i}' for i in range(95, 138)],
+        'V138_166': [f'V{i}' for i in range(138, 167)],
+        'V167_216': [f'V{i}' for i in range(167, 217)],
+        'V217_278': [f'V{i}' for i in range(217, 279)],
+        'V279_339': [f'V{i}' for i in range(279, 340)],
+    }
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        X = X.copy()
+        for block_name, cols in self.V_BLOCKS.items():
+            present = [c for c in cols if c in X.columns]
+            if present:
+                # Block is "missing" if ALL columns in it are null
+                X[f'{block_name}_missing'] = X[present].isna().all(axis=1).astype(int)
         return X
 
 
