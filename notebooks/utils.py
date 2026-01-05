@@ -9,6 +9,13 @@ from matplotlib.textpath import TextPath
 
 
 def stringify_consecutive_numbers(numbers: list[int]) -> str:
+    """
+    Args:
+        numbers (list[int]): e.g. [1,2,3,5,6,8,10,11,12,13]
+
+    Returns:
+        str: e.g. "1-3, 5-6, 8, 10-13"
+    """
     runs = []
     _lst = []
     for _n in sorted(numbers):
@@ -34,6 +41,29 @@ def stringify_consecutive_numbers(numbers: list[int]) -> str:
     return ", ".join(strings)
 
 def disp_columns(df: pd.DataFrame, title: str = None):
+    """
+    Prints a summary of a dataframe's column types to console. 
+    
+    Used instead of print(df.dtypes()) in the situation where that would
+    be difficult to read because of a large number of columns and where many 
+    of the columns have similar names. 
+    
+    E.g. Instead of printing:
+        {
+            id: object,
+            V001: int64,
+            V002: int64,
+            ...
+            V238: int64
+        }
+        
+    We can simply see:
+    
+            id: object
+            V<001-238>: int64
+            
+    Much more readable. 
+    """
     dtype_dict = dict(df.dtypes)
     columns = dict()
     columns = dict()
@@ -81,7 +111,6 @@ def _get_text_width(text: str, fontsize: float = 9) -> float:
     fp = FontProperties(size=fontsize)
     tp = TextPath((0, 0), text, prop=fp)
     return tp.get_extents().width
-
 
 def column_distributions(dataframe: pd.DataFrame, exclude_cols=None) -> Figure:
     """Display table-style distribution plots for all columns in a DataFrame."""
